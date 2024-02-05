@@ -1,17 +1,20 @@
-use nix::libc::{lseek, open, read, remove, write, O_APPEND, O_CREAT, O_RDWR, O_TRUNC};
-use std::ffi::c_void;
+use nix::{
+    libc::{lseek, open, read, remove, write, O_APPEND, O_CREAT, O_RDWR, O_TRUNC},
+    NixPath,
+};
+use std::ffi::{c_char, c_void, CString};
 fn main() {
-    let tmp_file = "tmp.txt";
+    let tmp_file = CString::new("tmp.txt").unwrap();
     let f = unsafe {
         open(
-            tmp_file.as_ptr() as *const i8,
-            O_RDWR | O_APPEND | O_CREAT | O_TRUNC,
+            tmp_file.as_ptr() as *const c_char,
+            O_RDWR | O_CREAT | O_APPEND,
+            0o777,
         )
     };
 
     if f < 0 {
         println!("Open file failed");
-        stringerr();
         return;
     }
 
@@ -42,7 +45,7 @@ fn main() {
             println!("Read tail content failed");
             return;
         }
-        println!("read buf: {:?}", read_buf);
+        println!("read buf: {:?}", CString::new(&read_buf[..ret as usize]));
 
         ret = lseek(f, 0, 0) as isize;
         if ret == -1 {
@@ -55,7 +58,7 @@ fn main() {
             head_content.as_ptr() as *const c_void,
             head_content.len(),
         );
-        if ret == head_content.len() as isize {
+        if ret != head_content.len() as isize {
             println!("write head content failed {}", ret);
             // return;
         }
@@ -70,14 +73,13 @@ fn main() {
             read_buf.as_ptr() as *mut c_void,
             head_content.len() + tail_content.len(),
         );
-        if ret != head_content.len() as isize {
-            println!("Read tail content failed");
-            return;
+        if ret != head_content.len() as isize + tail_content.len() as isize {
+            println!("Read head content failed {ret}");
         }
-        println!("read buf: {:?}", read_buf);
+        println!("read buf: {:?}", CString::new(&read_buf[..ret as usize]));
     }
 
     unsafe {
-        remove(tmp_file.as_ptr() as *const i8);
+        remove(tmp_file.as_ptr() as *const c_char);
     }
 }
